@@ -1,0 +1,105 @@
+#Retail Analysis With Walmart Data
+#Importing the Data Frame
+
+walmart <- read.csv('Walmart_Store_sales.csv',stringsAsFactors = FALSE)
+
+#No.of rows and columns
+dim(walmart)
+
+#Structure of the variable
+str(walmart)
+
+#Viewing the dataset in tabular formart
+View(walmart)
+
+#Date manipulation using lubridate function
+install.packages('lubridate')
+library(lubridate)
+#Installing dplyr package for data manipulation
+install.packages('dplyr')
+yes
+library(dplyr)
+#checking for all available packages
+search()
+#converting to date form from character
+walmart <- walmart%>%mutate(new_dt=dmy(Date))
+str(walmart)
+View(walmart)
+summary(walmart)
+
+#aggregate the weekly sales by the store-store having max sales
+walmart %>% group_by(Store) %>% summarise(aggr_sales=sum(Weekly_Sales)) %>% arrange(desc(aggr_sales))
+
+walmart_1<-walmart %>% group_by(Store) %>% summarise(aggr_sales=sum(Weekly_Sales)) %>% arrange(desc(aggr_sales))
+ 
+View(walmart_1)
+**************************************************************************************
+
+#which store has max sd ie.,the sales vary a lot.. also, find the coefficient of mean to standard deviation
+
+walmart_2 <- walmart%>%group_by(Store)%>%summarise(avg_sales=mean(Weekly_Sales),std_sales=sd(Weekly_Sales))
+View(walmart_2)
+
+#coefficient of variation
+
+walmart_3 <- walmart_2%>%mutate(cov=(avg_sales/std_sales)*100)
+
+View(walmart_3)
+*****************************************************************************************************
+#quarterly growth rate
+#create quarter, year,month,semester variables
+
+walmart <- walmart%>%mutate(yr=year(new_dt),mon=month(new_dt),qtr=quarter(new_dt),sem=semester(new_dt))
+
+View(walmart)
+
+walmart <- walmart%>%mutate(yr_qtr=paste(yr,"Q",qtr,sep=""))
+
+View(walmart)
+
+walmart_4 <- walmart%>%group_by(Store,yr_qtr)%>%summarise(qtr_sales=sum(Weekly_Sales))
+View(walmart_4)
+
+walmart_5 <- walmart_4%>%mutate(qoq_rate=(qtr_sales/lag(qtr_sales,4)-1)*100)
+View(walmart_5)
+
+walmart_6 <- walmart_5%>%filter(yr_qtr=="2012Q3")%>%arrange(desc(qoq_rate))
+
+View(walmart_6)
+***********************************************************************************************
+#mean sales on non-holiday
+walmart%>%filter(Holiday_Flag==0)%>%summarise(avg_sales=mean(Weekly_Sales))
+walmart%>%filter(Holiday_Flag==1,Weekly_Sales>1041256)
+***********************************************************************************************
+#statistical model
+
+fact_dt=as.factor(walmart$new_dt)
+levels(fact_dt)
+
+uniq_date <- data.frame(new_dt1=levels(as.factor(walmart$new_dt)))
+View(uniq_date)
+
+uniq_date$r_1=row_number(uniq_date)
+uniq_date$new_dt=ymd(uniq_date$new_dt1)
+
+#merge this with the original data frame
+
+walmart_new <- inner_join(walmart,uniq_date,by='new_dt')
+
+View(walmart_new)
+
+walmart$Holiday_Flag=as.factor(walmart$Holiday_Flag)
+
+library('ggplot2')
+
+ggplot(data=walmart,aes(x=CPI,y=Weekly_Sales))+geom_point(aes(color=Holiday_Flag))
+ggplot(data=walmart,aes(x=Fuel_Price,y=Weekly_Sales))+geom_point(aes(color=Holiday_Flag))
+ggplot(data=walmart,aes(x=Unemployment,y=Weekly_Sales))+geom_point(aes(color=Holiday_Flag))
+
+#Change dates into days by creating new variable
+walmart_new <- walmart_new%>%mutate(days=day(new_dt))
+
+#create a lm model
+
+lin_model <- lm(data=walmart_new,Weekly_Sales~Holiday_Flag+Unemployment+CPI)
+summary(lin_model)
